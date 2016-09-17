@@ -43,7 +43,7 @@ static void * Task1(void * param){
 	int j=4;
 	while (1) {
 		Board_LED_Toggle(1);
-		Os_Delay(500);
+		Os_Delay(140);
 //		for(j=0; j<0x8FFFFF; j++);
 	}
 	return (void *)0; /* a dónde va? */
