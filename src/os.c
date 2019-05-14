@@ -47,10 +47,10 @@ typedef enum TaskState {
 
 /** estructura interna de control de tareas */
 typedef struct TaskControlBlock {
-	uint32_t 					stackPointer;
-	const TaskDefinition_t * 	taskDefinition;
-	TaskState_t 				taskState;
-	uint32_t 					waitingTime;
+	uint32_t stackPointer;
+	const TaskDefinition_t * taskDefinition;
+	TaskState_t taskState;
+	uint32_t waitingTime;
 } TaskControlBlock_t;
 
 /*==================[internal data declaration]==============================*/
@@ -68,17 +68,17 @@ uint8_t StackFrameIdle[STACK_IDLE_SIZE];
 
 __attribute__ ((weak)) void * IdleHook(void * p);
 
-static uint32_t AddTaskToReadyList 		(uint32_t taskIndex, uint8_t priorityLevel);
-static uint32_t RemoveTaskFromReadyList (uint32_t taskIndex, uint8_t priorityLevel);
-static void 	UpdateTaskDelay			(void);
-static void 	ReturnHook				(void * returnValue);
-static void 	CreateTask				(uint8_t * stackFrame,
-										uint32_t stackFrameSize,
-										uint32_t * stackPointer,
-										EntryPoint_t entryPoint,
-										void * parameter,
-										TaskState_t * taskState);
-static void 	ProcessTaskEvent		(uint32_t taskIndex, TaskEvent_t taskEvent);
+static uint32_t AddTaskToReadyList(uint32_t taskIndex, uint8_t priorityLevel);
+static uint32_t RemoveTaskFromReadyList(uint32_t taskIndex, uint8_t priorityLevel);
+static void UpdateTaskDelay(void);
+static void ReturnHook(void * returnValue);
+static void CreateTask(uint8_t * stackFrame,
+                       uint32_t stackFrameSize,
+					   uint32_t * stackPointer,
+					   EntryPoint_t entryPoint,
+					   void * parameter,
+					   TaskState_t * taskState);
+static void ProcessTaskEvent (uint32_t taskIndex, TaskEvent_t taskEvent);
 
 /*==================[internal data definition]===============================*/
 
@@ -91,16 +91,11 @@ static const TaskDefinition_t TaskDefinitionIdle = {
 		StackFrameIdle, STACK_IDLE_SIZE, IdleHook, 0, TASK_PRIORITY_IDLE
 };
 
-/* todo: hacer una maquina de estados de tareas en el que reciban el indice de la tarea que lo llama,
-el estado en que se encuentra la tarea y el evento que sucedio, y en funcion de eso que devuelva el nuevo
-estado de la tarea en cuestion
-*/
-
 /*==================[external data definition]===============================*/
 
 /*==================[internal functions definition]==========================*/
 
-static void 	ProcessTaskEvent 		(uint32_t taskIndex, TaskEvent_t taskEvent){
+static void ProcessTaskEvent(uint32_t taskIndex, TaskEvent_t taskEvent){
 	TaskControlBlock_t auxTaskControlBlock;
 
 	switch (TaskControlList[taskIndex].taskState){
@@ -159,15 +154,12 @@ static void 	ProcessTaskEvent 		(uint32_t taskIndex, TaskEvent_t taskEvent){
 
 		break;
 	}
-
-
-
 }
 
 /**
  * Cuando una tarea retorna debe ir a un lugar conocido como este Hook.
  */
-static void 	ReturnHook				(void * returnValue){
+static void ReturnHook(void * returnValue){
 	while(1);
 }
 
@@ -180,13 +172,12 @@ static void 	ReturnHook				(void * returnValue){
  * @param entryPoint Punto de entrada de la tarea (donde iniciara la primer instruccion)
  * @param parameter parametro de la tarea.
  */
-static void 	CreateTask				(
-		uint8_t * 		stackFrame,
-		uint32_t 		stackFrameSize,
-		uint32_t * 		stackPointer,
-		EntryPoint_t	entryPoint,
-		void * 			parameter,
-		TaskState_t * 	state){
+static void CreateTask(uint8_t * stackFrame,
+                       uint32_t stackFrameSize,
+                       uint32_t * stackPointer,
+                       EntryPoint_t entryPoint,
+                       void * parameter,
+                       TaskState_t * state){
 
 	uint32_t * auxStackFrame = (uint32_t *)stackFrame;
 
@@ -217,7 +208,7 @@ static void 	CreateTask				(
 }
 
 /** Actualiza el contador de delay de la tarea actual. */
-static void 	UpdateTaskDelay			(void){
+static void UpdateTaskDelay(void){
 	uint32_t taskIndex;
 	for (taskIndex = 0; taskIndex < TASK_COUNT_OS; taskIndex++) {
 		if ( (TaskControlList[taskIndex].taskState == TASK_STATE_WAITING) && (TaskControlList[taskIndex].waitingTime > 0)) {
@@ -234,7 +225,7 @@ static void 	UpdateTaskDelay			(void){
  * @param priorityLevel prioridad de la tarea
  * @return estado de la operacion
  */
-static uint32_t AddTaskToReadyList 		(uint32_t taskIndex, uint8_t priorityLevel){
+static uint32_t AddTaskToReadyList(uint32_t taskIndex, uint8_t priorityLevel){
 
 	uint32_t taskIndexVolatile;
 
@@ -255,7 +246,7 @@ static uint32_t AddTaskToReadyList 		(uint32_t taskIndex, uint8_t priorityLevel)
  * @param priorityLevel prioridad de la tarea
  * @return estado de la operacion
  */
-static uint32_t RemoveTaskFromReadyList (uint32_t taskIndex, uint8_t priorityLevel){
+static uint32_t RemoveTaskFromReadyList(uint32_t taskIndex, uint8_t priorityLevel){
 	uint32_t taskIndexVolatile;
 
 	if (priorityLevel >= 0 && priorityLevel < TASK_PRIORITY_COUNT){
@@ -273,9 +264,6 @@ static uint32_t RemoveTaskFromReadyList (uint32_t taskIndex, uint8_t priorityLev
 			}
 		}
 	}
-
-
-
 	return 0;
 }
 
@@ -283,7 +271,7 @@ static uint32_t RemoveTaskFromReadyList (uint32_t taskIndex, uint8_t priorityLev
  * Hook donde va el procesador si ya no quedan tareas por ejecutar.
  * @param p parametro generico (no se utiliza).
  */
-void * 			IdleHook				(void * p){
+void * IdleHook(void * p){
 	while (1) {
 		__WFI();
 	}
@@ -293,7 +281,7 @@ void * 			IdleHook				(void * p){
  * Rutina de interrupcion del systic del sistema.
  * El nombre de las interrupciones esta en cr_startup_xx.c del uC del sistema.
  */
-void 			SysTick_Handler			(void){
+void SysTick_Handler(void){
 	UpdateTaskDelay();
 	Os_Schedule();
 }
@@ -305,7 +293,7 @@ void 			SysTick_Handler			(void){
  * Cuando pasa el tiempo seteado por el usuario, le devuelve el control a la tarea que lo llamo.
  * @param milliseconds tiempo en milisegundos a esperar.
  */
-void 			Os_Delay				(uint32_t milliseconds){
+void Os_Delay(uint32_t milliseconds){
 	if (CurrentTask != TASK_INVALID) {
 		TaskControlList[CurrentTask].waitingTime = milliseconds;
 		ProcessTaskEvent(CurrentTask, TASK_EVENT_BLOCK);
@@ -319,17 +307,17 @@ void 			Os_Delay				(uint32_t milliseconds){
  * @param actualContext valor del msp (main stack pointer) actual. Cargado en r0 desde el ASM.
  * @return valor del stack pointer que se debe ejecutar (el ASM generado por GCC carga en r0 el valor del return)
  */
-int32_t 		Os_GetNextContext		(int32_t currentStackPointer){
+int32_t Os_GetNextContext(int32_t currentStackPointer){
 
 	uint32_t stackPointerToReturn;
 	uint8_t taskPriorityLevel;
 
 	/** Si es una tarea valida...
-	 * 		Guarda el stack pointer de la tarea actual.
-	 * 		Si la tarea actual esta corriendo (En estado running)...
-	 * 			Pone la tarea en estado ready
-	 * 			Agrega la tarea a la lista de tareas listas para ejecutarse
-	 * 	(Se realiza lo de agregar a la tarea ready para simplificar la logica de seleccion de tareas.*/
+	 * Guarda el stack pointer de la tarea actual.
+	 * Si la tarea actual esta corriendo (En estado running)...
+	 * Pone la tarea en estado ready
+	 * Agrega la tarea a la lista de tareas listas para ejecutarse
+	 * (Se realiza lo de agregar a la tarea ready para simplificar la logica de seleccion de tareas.*/
 	if (CurrentTask < TASK_COUNT_OS) {
 		TaskControlList[CurrentTask].stackPointer = currentStackPointer;
 		if (TaskControlList[CurrentTask].taskState == TASK_STATE_RUNNING ){
@@ -353,7 +341,7 @@ int32_t 		Os_GetNextContext		(int32_t currentStackPointer){
  * Activa la interrupcion por software del PendSV, de esta manera se procedera a
  * hacer el cambio de contexto.
  */
-void 			Os_Schedule				(void){
+void Os_Schedule(void){
 	/* activo PendSV para llevar a cabo el cambio de contexto */
 	SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
 	/* Instruction Synchronization Barrier: aseguramos que se
@@ -372,7 +360,7 @@ void 			Os_Schedule				(void){
  * inician las tareas definidas por el usuario.
  * @return no debe retornar
  */
-int 			Os_Start				(void){
+int Os_Start(void){
 	uint32_t taskIndex, priorityIndex;
 
 	/* actualizo SystemCoreClock (CMSIS) */
@@ -415,3 +403,8 @@ int 			Os_Start				(void){
 //todo: buffer circular para agregar/quitar tareas
 
 //todo: rebobinar la cinta cuando se deba poner al indice de la tarea actual en el primer lugar
+
+/* todo: hacer una maquina de estados de tareas en el que reciban el indice de la tarea que lo llama,
+el estado en que se encuentra la tarea y el evento que sucedio, y en funcion de eso que devuelva el nuevo
+estado de la tarea en cuestion
+*/

@@ -44,49 +44,43 @@ static void * Task1(void * param){
 	while (1) {
 		Board_LED_Toggle(1);
 		Os_Delay(140);
-//		for(j=0; j<0x8FFFFF; j++);
 	}
-	return (void *)0; /* a dónde va? */
+	return (void *)0; 
 }
 
 static void * Task2(void * param){
 	int j=4;
 	while (j) {
 		Board_LED_Toggle(2);
-//		for(j=0; j<0xFFFFFF; j++);
 		Os_Delay(650);
 	}
-	return (void *)4; /* a dónde va? */
+	return (void *)4; 
 }
 
 static void * Task3(void * param){
 	int j=4;
 	while (j) {
 		Board_LED_Toggle(3);
-//		for(j=0; j<0x5FFFFF; j++);
 		Os_Delay(800);
 	}
-	return (void *)4; /* a dónde va? */
+	return (void *)4; 
 }
 
 static void * Task4(void * param){
 	int j=4;
 	while (j) {
 		Board_LED_Toggle(4);
-//		for(j=0; j<0xAFFFFF; j++);
 		Os_Delay(900);
 	}
-	return (void *)4; /* a dónde va? */
-}
+	return (void *)4; 
 
 static void * Task5(void * param){
 	int j=4;
 	while (j) {
 		Board_LED_Toggle(5);
-//		for(j=0; j<0xFFFFFF; j++);
 		Os_Delay(250);
 	}
-	return (void *)4; /* a dónde va? */
+	return (void *)4;
 }
 
 /*==================[external functions definition]==========================*/

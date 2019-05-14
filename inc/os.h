@@ -30,8 +30,6 @@ typedef struct TaskDefinition {
 	TaskLevelPriority_t priorityLevel;
 } TaskDefinition_t;
 
-
-
 /*==================[external data declaration]==============================*/
 
 extern const TaskDefinition_t Os_TaskList[TASK_COUNT];
