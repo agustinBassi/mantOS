@@ -60,9 +60,9 @@ Call the system initialization in the setup process. Note that there are no code
 
 # Contributing
 
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+Do you like the project? Please, helpe with a STAR and Follow. It is important for me and animates me to continue working and contribuiting for the open source community.
 
-Please make sure to update tests as appropriate.
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
 # License
 

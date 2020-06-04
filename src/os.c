@@ -7,88 +7,77 @@
 
 /*==================[macros and definitions]=================================*/
 
-/** TASK COUNT number used by OS y task user count + 1*/
-#define TASK_COUNT_OS (TASK_COUNT+1)
+/** TASK COUNT number used by OS and task user count + 1*/
+#define TASK_COUNT_OS       (TASK_COUNT+1)
+/** return value of exception to load in LR */
+#define EXC_RETURN          0xFFFFFFF9
+/** id for idle task */
+#define TASK_IDLE           (TASK_COUNT_OS - 1)
+/** id for invalid task */
+#define TASK_INVALID        (TASK_IDLE + 1)
+/** Idle task stack size */
+#define STACK_IDLE_SIZE     256
 
-/** valor de retorno de excepción a cargar en el LR */
-#define EXC_RETURN 0xFFFFFFF9
-
-/** id de tarea idle */
-#define TASK_IDLE (TASK_COUNT_OS - 1)
-
-/** id de tarea inválida */
-#define TASK_INVALID (TASK_IDLE + 1)
-
-/** tamaño de stack de tarea idle */
-#define STACK_IDLE_SIZE 256
-
-/** Posibles eventos que le pueden ocurrir a las tareas. */
+/** Possible events that can happen to tasks. */
 typedef enum TaskEvent{
-	TASK_EVENT_INVALID,
-	TASK_EVENT_PREEMT,
-	TASK_EVENT_SCHED,
-	TASK_EVENT_RETURN,
-	TASK_EVENT_RETURN_DEATACHED,
-	TASK_EVENT_JOIN,
-	TASK_EVENT_BLOCK,
-	TASK_EVENT_UNBLOCK,
-	TASK_EVENT_START,
+    TASK_EVENT_INVALID,
+    TASK_EVENT_PREEMT,
+    TASK_EVENT_SCHED,
+    TASK_EVENT_RETURN,
+    TASK_EVENT_RETURN_DEATACHED,
+    TASK_EVENT_JOIN,
+    TASK_EVENT_BLOCK,
+    TASK_EVENT_UNBLOCK,
+    TASK_EVENT_START,
 } TaskEvent_t;
 
-/** posibles estados de una tarea */
+/** possible states of a task */
 typedef enum TaskState {
-	TASK_STATE_INVALID,
-	TASK_STATE_READY,
-	TASK_STATE_RUNNING,
-	TASK_STATE_WAITING,
-	TASK_STATE_ZOMBIE,
-	TASK_STATE_TERMINATED
+    TASK_STATE_INVALID,
+    TASK_STATE_READY,
+    TASK_STATE_RUNNING,
+    TASK_STATE_WAITING,
+    TASK_STATE_ZOMBIE,
+    TASK_STATE_TERMINATED
 } TaskState_t;
 
-/** estructura interna de control de tareas */
+/** internal task control structure */
 typedef struct TaskControlBlock {
-	uint32_t stackPointer;
-	const TaskDefinition_t * taskDefinition;
-	TaskState_t taskState;
-	uint32_t waitingTime;
+    uint32_t                 stackPointer;
+    const TaskDefinition_t * taskDefinition;
+    TaskState_t              taskState;
+    uint32_t                 waitingTime;
 } TaskControlBlock_t;
 
 /*==================[internal data declaration]==============================*/
 
-/** Lista de tareas en estado ready que se mirara para seleccionar la siguiente tarea a ejecutar*/
+/** List of tasks in ready state that will be looked at to select the next */
 uint8_t ReadyTasksList [TASK_PRIORITY_COUNT][TASK_COUNT_OS];
-
-/** estructura interna de control de tareas */
+/** internal task control structure */
 static TaskControlBlock_t TaskControlList[TASK_COUNT_OS];
-
-/** contexto de la tarea idle */
+/** idle task context */
 uint8_t StackFrameIdle[STACK_IDLE_SIZE];
 
 /*==================[internal functions declaration]=========================*/
 
 __attribute__ ((weak)) void * IdleHook(void * p);
 
-static uint32_t AddTaskToReadyList(uint32_t taskIndex, uint8_t priorityLevel);
-static uint32_t RemoveTaskFromReadyList(uint32_t taskIndex, uint8_t priorityLevel);
-static void UpdateTaskDelay(void);
-static void ReturnHook(void * returnValue);
-static void CreateTask(uint8_t * stackFrame,
-                       uint32_t stackFrameSize,
-					   uint32_t * stackPointer,
-					   EntryPoint_t entryPoint,
-					   void * parameter,
-					   TaskState_t * taskState);
-static void ProcessTaskEvent (uint32_t taskIndex, TaskEvent_t taskEvent);
+static uint32_t AddTaskToReadyList      (uint32_t taskIndex, uint8_t priorityLevel);
+static uint32_t RemoveTaskFromReadyList (uint32_t taskIndex, uint8_t priorityLevel);
+static void     UpdateTaskDelay         (void);
+static void     ReturnHook              (void * returnValue);
+static void     ProcessTaskEvent        (uint32_t taskIndex, TaskEvent_t taskEvent);
+static void     CreateTask              (uint8_t * stackFrame, uint32_t stackFrameSize,
+                                         uint32_t * stackPointer, EntryPoint_t entryPoint,
+                                         void * parameter, TaskState_t * taskState);
 
 /*==================[internal data definition]===============================*/
 
-/** indice a la tarea actual */
+/** index to current task */
 static uint32_t CurrentTask = TASK_INVALID;
-
-
-/** Estructura de definicion de la tarea idle. */
+/** Definition structure of the idle task. */
 static const TaskDefinition_t TaskDefinitionIdle = {
-		StackFrameIdle, STACK_IDLE_SIZE, IdleHook, 0, TASK_PRIORITY_IDLE
+        StackFrameIdle, STACK_IDLE_SIZE, IdleHook, 0, TASK_PRIORITY_IDLE
 };
 
 /*==================[external data definition]===============================*/
@@ -96,315 +85,301 @@ static const TaskDefinition_t TaskDefinitionIdle = {
 /*==================[internal functions definition]==========================*/
 
 static void ProcessTaskEvent(uint32_t taskIndex, TaskEvent_t taskEvent){
-	TaskControlBlock_t auxTaskControlBlock;
+    TaskControlBlock_t auxTaskControlBlock;
 
-	switch (TaskControlList[taskIndex].taskState){
-		case TASK_STATE_READY:
-			if (taskEvent == TASK_EVENT_PREEMT){
-				TaskControlList[taskIndex].taskState = TASK_STATE_RUNNING;
-				RemoveTaskFromReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
-			} else if (taskEvent == TASK_EVENT_BLOCK){
-				TaskControlList[taskIndex].taskState = TASK_STATE_WAITING;
-				RemoveTaskFromReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
-			}
-		break;
-		case TASK_STATE_RUNNING:
-			if (taskEvent == TASK_EVENT_SCHED){
-				TaskControlList[taskIndex].taskState = TASK_STATE_READY;
-				AddTaskToReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
-			} else if (taskEvent == TASK_EVENT_RETURN){
-				TaskControlList[taskIndex].taskState = TASK_STATE_ZOMBIE;
-				RemoveTaskFromReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
-			} else if (taskEvent == TASK_EVENT_RETURN_DEATACHED){
-				TaskControlList[taskIndex].taskState = TASK_STATE_TERMINATED;
-				RemoveTaskFromReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
-			} else if (taskEvent == TASK_EVENT_BLOCK){
-				TaskControlList[taskIndex].taskState = TASK_STATE_WAITING;
-				RemoveTaskFromReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
-			}
-		break;
-		case TASK_STATE_WAITING:
-			if (taskEvent == TASK_EVENT_UNBLOCK){
-				TaskControlList[taskIndex].taskState = TASK_STATE_READY;
-				AddTaskToReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
-			}
-		break;
-		case TASK_STATE_TERMINATED:
-			if (taskEvent == TASK_EVENT_START){
-				TaskControlList[taskIndex].taskDefinition = Os_TaskList + taskIndex;
+    switch (TaskControlList[taskIndex].taskState){
+        case TASK_STATE_READY:
+            if (taskEvent == TASK_EVENT_PREEMT){
+                TaskControlList[taskIndex].taskState = TASK_STATE_RUNNING;
+                RemoveTaskFromReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
+            } else if (taskEvent == TASK_EVENT_BLOCK){
+                TaskControlList[taskIndex].taskState = TASK_STATE_WAITING;
+                RemoveTaskFromReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
+            }
+        break;
+        case TASK_STATE_RUNNING:
+            if (taskEvent == TASK_EVENT_SCHED){
+                TaskControlList[taskIndex].taskState = TASK_STATE_READY;
+                AddTaskToReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
+            } else if (taskEvent == TASK_EVENT_RETURN){
+                TaskControlList[taskIndex].taskState = TASK_STATE_ZOMBIE;
+                RemoveTaskFromReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
+            } else if (taskEvent == TASK_EVENT_RETURN_DEATACHED){
+                TaskControlList[taskIndex].taskState = TASK_STATE_TERMINATED;
+                RemoveTaskFromReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
+            } else if (taskEvent == TASK_EVENT_BLOCK){
+                TaskControlList[taskIndex].taskState = TASK_STATE_WAITING;
+                RemoveTaskFromReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
+            }
+        break;
+        case TASK_STATE_WAITING:
+            if (taskEvent == TASK_EVENT_UNBLOCK){
+                TaskControlList[taskIndex].taskState = TASK_STATE_READY;
+                AddTaskToReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
+            }
+        break;
+        case TASK_STATE_TERMINATED:
+            if (taskEvent == TASK_EVENT_START){
+                TaskControlList[taskIndex].taskDefinition = Os_TaskList + taskIndex;
 
-				CreateTask(
-						TaskControlList[taskIndex].taskDefinition->stackFrame,
-						TaskControlList[taskIndex].taskDefinition->stackSize,
-					  &(TaskControlList[taskIndex].stackPointer),
-						TaskControlList[taskIndex].taskDefinition->entryPoint,
-						TaskControlList[taskIndex].taskDefinition->parameter,
-					  &(TaskControlList[taskIndex].taskState));
+                CreateTask(
+                        TaskControlList[taskIndex].taskDefinition->stackFrame,
+                        TaskControlList[taskIndex].taskDefinition->stackSize,
+                      &(TaskControlList[taskIndex].stackPointer),
+                        TaskControlList[taskIndex].taskDefinition->entryPoint,
+                        TaskControlList[taskIndex].taskDefinition->parameter,
+                      &(TaskControlList[taskIndex].taskState));
 
-				AddTaskToReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
-			}
-		break;
-		case TASK_STATE_ZOMBIE:
-			if (taskEvent == TASK_EVENT_JOIN){
-				TaskControlList[taskIndex].taskState = TASK_STATE_TERMINATED;
-				RemoveTaskFromReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
-			}
-		break;
-		case TASK_STATE_INVALID:
+                AddTaskToReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
+            }
+        break;
+        case TASK_STATE_ZOMBIE:
+            if (taskEvent == TASK_EVENT_JOIN){
+                TaskControlList[taskIndex].taskState = TASK_STATE_TERMINATED;
+                RemoveTaskFromReadyList(taskIndex, TaskControlList[taskIndex].taskDefinition->priorityLevel);
+            }
+        break;
+        case TASK_STATE_INVALID:
 
-		break;
-	}
+        break;
+    }
 }
 
 /**
- * Cuando una tarea retorna debe ir a un lugar conocido como este Hook.
+ * When a task returns it must go to a place known as this Hook.
  */
 static void ReturnHook(void * returnValue){
-	while(1);
+    while(1);
 }
 
 /**
- * Crea el contexto inicial para cada tarea del SO.
- * El valor donde se guardan los valores del stack de cada tarea es en el vector StackFrameX[STACK_SIZE]
- * @param stackFrame Vector de pila (frame).
- * @param stackFrameSize Tamaño expresado en bytes.
- * @param stackPointer Donde guardar el puntero de pila.
- * @param entryPoint Punto de entrada de la tarea (donde iniciara la primer instruccion)
- * @param parameter parametro de la tarea.
+* Create the initial context for each OS task.
+* The value where the stack values of each task are stored is in the vector StackFrameX [STACK_SIZE]
+* @param stackFrame Stack vector (frame).
+* @param stackFrameSize Size expressed in bytes.
+* @param stackPointer Where to save the stack pointer.
+* @param entryPoint Task entry point (where the first instruction will start)
+* @param parameter task parameter.
  */
-static void CreateTask(uint8_t * stackFrame,
-                       uint32_t stackFrameSize,
-                       uint32_t * stackPointer,
-                       EntryPoint_t entryPoint,
-                       void * parameter,
-                       TaskState_t * state){
+static void CreateTask(uint8_t * stackFrame, uint32_t stackFrameSize,
+                       uint32_t * stackPointer, EntryPoint_t entryPoint,
+                       void * parameter, TaskState_t * state){
 
-	uint32_t * auxStackFrame = (uint32_t *)stackFrame;
+    uint32_t * auxStackFrame = (uint32_t *)stackFrame;
 
-	/* inicializo el frame en cero */
-	bzero(auxStackFrame, stackFrameSize);
-
-	/* último elemento del contexto inicial: xPSR
-	 * necesita el bit 24 (T, modo Thumb) en 1
-	 */
-	auxStackFrame[stackFrameSize/4 - 1] = 1<<24;
-
-	/* anteúltimo elemento: PC (entry point) */
-	auxStackFrame[stackFrameSize/4 - 2] = (uint32_t)entryPoint;
-
-	/* penúltimo elemento: LR (return hook) */
-	auxStackFrame[stackFrameSize/4 - 3] = (uint32_t)ReturnHook;
-
-	/* elemento -8: R0 (parámetro) */
-	auxStackFrame[stackFrameSize/4 - 8] = (uint32_t)parameter;
-
-	auxStackFrame[stackFrameSize/4 - 9] = EXC_RETURN;
-
-	/* inicializo stack pointer inicial */
-	*stackPointer = (uint32_t)&(auxStackFrame[stackFrameSize/4 - 17]);
-
-	/* seteo estado inicial READY */
-	*state = TASK_STATE_READY;
+    /* inicializo el frame en cero */
+    bzero(auxStackFrame, stackFrameSize);
+    /* último elemento del contexto inicial: xPSR
+     * necesita el bit 24 (T, modo Thumb) en 1 */
+    auxStackFrame[stackFrameSize/4 - 1] = 1<<24;
+    /* anteúltimo elemento: PC (entry point) */
+    auxStackFrame[stackFrameSize/4 - 2] = (uint32_t)entryPoint;
+    /* penúltimo elemento: LR (return hook) */
+    auxStackFrame[stackFrameSize/4 - 3] = (uint32_t)ReturnHook;
+    /* elemento -8: R0 (parámetro) */
+    auxStackFrame[stackFrameSize/4 - 8] = (uint32_t)parameter;
+    auxStackFrame[stackFrameSize/4 - 9] = EXC_RETURN;
+    /* inicializo stack pointer inicial */
+    *stackPointer = (uint32_t)&(auxStackFrame[stackFrameSize/4 - 17]);
+    /* seteo estado inicial READY */
+    *state = TASK_STATE_READY;
 }
 
-/** Actualiza el contador de delay de la tarea actual. */
+/** Update the delay counter for the current task. */
 static void UpdateTaskDelay(void){
-	uint32_t taskIndex;
-	for (taskIndex = 0; taskIndex < TASK_COUNT_OS; taskIndex++) {
-		if ( (TaskControlList[taskIndex].taskState == TASK_STATE_WAITING) && (TaskControlList[taskIndex].waitingTime > 0)) {
-			if (--TaskControlList[taskIndex].waitingTime == 0) {
-				ProcessTaskEvent(taskIndex, TASK_EVENT_UNBLOCK);
-			}
-		}
-	}
+    uint32_t taskIndex;
+    for (taskIndex = 0; taskIndex < TASK_COUNT_OS; taskIndex++) {
+        if ( (TaskControlList[taskIndex].taskState == TASK_STATE_WAITING) && (TaskControlList[taskIndex].waitingTime > 0)) {
+            if (--TaskControlList[taskIndex].waitingTime == 0) {
+                ProcessTaskEvent(taskIndex, TASK_EVENT_UNBLOCK);
+            }
+        }
+    }
 }
 
 /**
- * Agrega una tarea a la lista de tareas ready (que pueden ser ejecutadas).
- * @param taskIndex indice de la tarea
- * @param priorityLevel prioridad de la tarea
- * @return estado de la operacion
+* Add a task to the list of ready tasks (that can be executed).
+* @param taskIndex index of the task
+* @param priorityLevel task priority
+* @return operation status
  */
 static uint32_t AddTaskToReadyList(uint32_t taskIndex, uint8_t priorityLevel){
 
-	uint32_t taskIndexVolatile;
+    uint32_t taskIndexVolatile;
 
-	if (priorityLevel >= 0 && priorityLevel < TASK_PRIORITY_COUNT){
-		for (taskIndexVolatile = 0; taskIndexVolatile < TASK_COUNT_OS; taskIndexVolatile++){
-			if (ReadyTasksList[priorityLevel][taskIndexVolatile] == TASK_INVALID){
-				ReadyTasksList[priorityLevel][taskIndexVolatile] = taskIndex;
-				break;
-			}
-		}
-	}
-	return 0;
+    if (priorityLevel >= 0 && priorityLevel < TASK_PRIORITY_COUNT){
+        for (taskIndexVolatile = 0; taskIndexVolatile < TASK_COUNT_OS; taskIndexVolatile++){
+            if (ReadyTasksList[priorityLevel][taskIndexVolatile] == TASK_INVALID){
+                ReadyTasksList[priorityLevel][taskIndexVolatile] = taskIndex;
+                break;
+            }
+        }
+    }
+    return 0;
 }
 
 /**
- * Remueve una tarea de la lista de tareas ready (ya no puede ser ejecutada).
- * @param taskIndex indice de la tarea
- * @param priorityLevel prioridad de la tarea
- * @return estado de la operacion
+* Remove a task from the ready task list (it can no longer be executed).
+* @param taskIndex index of the task
+* @param priorityLevel task priority
+* @return operation status
  */
 static uint32_t RemoveTaskFromReadyList(uint32_t taskIndex, uint8_t priorityLevel){
-	uint32_t taskIndexVolatile;
+    uint32_t taskIndexVolatile;
 
-	if (priorityLevel >= 0 && priorityLevel < TASK_PRIORITY_COUNT){
-		for (taskIndexVolatile = 0; taskIndexVolatile < TASK_COUNT_OS; taskIndexVolatile++){
-			if (ReadyTasksList[priorityLevel][taskIndexVolatile] == taskIndex){
-				// todo: hacer una API que tenga una funcion shift array para poner el primer elemento del arreglo en un indice valido
-				ReadyTasksList[priorityLevel][taskIndexVolatile] = TASK_INVALID;
+    if (priorityLevel >= 0 && priorityLevel < TASK_PRIORITY_COUNT){
+        for (taskIndexVolatile = 0; taskIndexVolatile < TASK_COUNT_OS; taskIndexVolatile++){
+            if (ReadyTasksList[priorityLevel][taskIndexVolatile] == taskIndex){
+                // TODO: make an API that has a shift array function to put the first element of the array in a valid index
+                ReadyTasksList[priorityLevel][taskIndexVolatile] = TASK_INVALID;
 
-				for (taskIndexVolatile = 0; taskIndexVolatile < (TASK_COUNT_OS-1); taskIndexVolatile++){
-					ReadyTasksList[priorityLevel][taskIndexVolatile] = ReadyTasksList[priorityLevel][taskIndexVolatile + 1];
-				}
-				ReadyTasksList[priorityLevel][TASK_COUNT_OS-1] = TASK_INVALID;
+                for (taskIndexVolatile = 0; taskIndexVolatile < (TASK_COUNT_OS-1); taskIndexVolatile++){
+                    ReadyTasksList[priorityLevel][taskIndexVolatile] = ReadyTasksList[priorityLevel][taskIndexVolatile + 1];
+                }
+                ReadyTasksList[priorityLevel][TASK_COUNT_OS-1] = TASK_INVALID;
 
-				break;
-			}
-		}
-	}
-	return 0;
+                break;
+            }
+        }
+    }
+    return 0;
 }
 
 /**
- * Hook donde va el procesador si ya no quedan tareas por ejecutar.
- * @param p parametro generico (no se utiliza).
+* Hook where the processor goes if there are no tasks left to execute.
+* @param p generic parameter (not used).
  */
 void * IdleHook(void * p){
-	while (1) {
-		__WFI();
-	}
+    while (1) {
+        __WFI();
+    }
 }
 
 /**
- * Rutina de interrupcion del systic del sistema.
- * El nombre de las interrupciones esta en cr_startup_xx.c del uC del sistema.
+* System systic interrupt routine.
+* The name of the interrupts is in cr_startup_xx.c of the system uC.
  */
 void SysTick_Handler(void){
-	UpdateTaskDelay();
-	Os_Schedule();
+    UpdateTaskDelay();
+    Os_Schedule();
 }
 
 /*==================[external functions definition]==========================*/
 
 /**
- * Genera un delay por software que el sistema operativo se encarga de manejar.
- * Cuando pasa el tiempo seteado por el usuario, le devuelve el control a la tarea que lo llamo.
- * @param milliseconds tiempo en milisegundos a esperar.
+* It generates a delay by software that the operating system is in charge of handling.
+* When the time set by the user passes, it returns control to the task that called it.
+* @param milliseconds time in milliseconds to wait.
  */
 void Os_Delay(uint32_t milliseconds){
-	if (CurrentTask != TASK_INVALID) {
-		TaskControlList[CurrentTask].waitingTime = milliseconds;
-		ProcessTaskEvent(CurrentTask, TASK_EVENT_BLOCK);
-		Os_Schedule();
-	}
+    if (CurrentTask != TASK_INVALID) {
+        TaskControlList[CurrentTask].waitingTime = milliseconds;
+        ProcessTaskEvent(CurrentTask, TASK_EVENT_BLOCK);
+        Os_Schedule();
+    }
 }
 
 /**
- * Cambia el main stack pointer del sistema dependiendo del valor del stack pointer actual (hace el cambio de contexto).
- * En esta funcion se define la politica de scheduling del sistema operativo.
- * @param actualContext valor del msp (main stack pointer) actual. Cargado en r0 desde el ASM.
- * @return valor del stack pointer que se debe ejecutar (el ASM generado por GCC carga en r0 el valor del return)
+* Change the main stack pointer of the system depending on the current stack pointer value (does the context change).
+* This function defines the scheduling policy of the operating system.
+* @param actualContext value of the current msp (main stack pointer). Loaded in r0 from ASM.
+* @return value of the stack pointer to be executed (the ASM generated by GCC loads the return value in r0)
  */
 int32_t Os_GetNextContext(int32_t currentStackPointer){
 
-	uint32_t stackPointerToReturn;
-	uint8_t taskPriorityLevel;
+    uint32_t stackPointerToReturn;
+    uint8_t taskPriorityLevel;
 
-	/** Si es una tarea valida...
-	 * Guarda el stack pointer de la tarea actual.
-	 * Si la tarea actual esta corriendo (En estado running)...
-	 * Pone la tarea en estado ready
-	 * Agrega la tarea a la lista de tareas listas para ejecutarse
-	 * (Se realiza lo de agregar a la tarea ready para simplificar la logica de seleccion de tareas.*/
-	if (CurrentTask < TASK_COUNT_OS) {
-		TaskControlList[CurrentTask].stackPointer = currentStackPointer;
-		if (TaskControlList[CurrentTask].taskState == TASK_STATE_RUNNING ){
-			ProcessTaskEvent(CurrentTask, TASK_EVENT_SCHED);
-		}
-	}
+    /** 
+     * If it is a valid task ...
+     * Save the stack pointer of the current task.
+     * If the current task is running (In running state) ...
+     * Put the task in ready state
+     * Add the task to the list of ready-to-run tasks
+     * (Adding to the ready task is done to simplify the task selection logic.
+     * */
+    if (CurrentTask < TASK_COUNT_OS) {
+        TaskControlList[CurrentTask].stackPointer = currentStackPointer;
+        if (TaskControlList[CurrentTask].taskState == TASK_STATE_RUNNING ){
+            ProcessTaskEvent(CurrentTask, TASK_EVENT_SCHED);
+        }
+    }
 
-	for (taskPriorityLevel = TASK_PRIORITY_HIGH; taskPriorityLevel >= TASK_PRIORITY_IDLE; taskPriorityLevel--){
-		if (ReadyTasksList[taskPriorityLevel][0] <= TASK_IDLE){
-			CurrentTask = ReadyTasksList[taskPriorityLevel][0];
-			ProcessTaskEvent(CurrentTask, TASK_EVENT_PREEMT);
-			stackPointerToReturn = TaskControlList[CurrentTask].stackPointer;
-			break;
-		}
-	}
+    for (taskPriorityLevel = TASK_PRIORITY_HIGH; taskPriorityLevel >= TASK_PRIORITY_IDLE; taskPriorityLevel--){
+        if (ReadyTasksList[taskPriorityLevel][0] <= TASK_IDLE){
+            CurrentTask = ReadyTasksList[taskPriorityLevel][0];
+            ProcessTaskEvent(CurrentTask, TASK_EVENT_PREEMT);
+            stackPointerToReturn = TaskControlList[CurrentTask].stackPointer;
+            break;
+        }
+    }
 
-	return stackPointerToReturn;
+    return stackPointerToReturn;
 }
 
 /**
- * Activa la interrupcion por software del PendSV, de esta manera se procedera a
- * hacer el cambio de contexto.
+* Activate the software interruption of the PendSV, in this way we will proceed to
+* make the context switch.
  */
 void Os_Schedule(void){
-	/* activo PendSV para llevar a cabo el cambio de contexto */
-	SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
-	/* Instruction Synchronization Barrier: aseguramos que se
-	 * ejecuten todas las instrucciones en  el pipeline
-	 */
-	__ISB();
-	/* Data Synchronization Barrier: aseguramos que se
-	 * completen todos los accesos a memoria
-	 */
-	__DSB();
+    /* activo PendSV para llevar a cabo el cambio de contexto */
+    SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
+    /* Instruction Synchronization Barrier: aseguramos que se
+     * ejecuten todas las instrucciones en  el pipeline
+     */
+    __ISB();
+    /* Data Synchronization Barrier: aseguramos que se
+     * completen todos los accesos a memoria
+     */
+    __DSB();
 }
 
 /**
- * Inicializa el sistema operativo. En esta funcion se configura adecuadamente el
- * core del microcontrolador, se inicia la tarea idle junto con su stack y contexto y se
- * inician las tareas definidas por el usuario.
- * @return no debe retornar
+* Initialize the operating system. In this function, the
+* core of the microcontroller, the idle task starts with its stack and context and
+* start user-defined tasks.
+* @return must not return
  */
 int Os_Start(void){
-	uint32_t taskIndex, priorityIndex;
+    uint32_t taskIndex, priorityIndex;
 
-	/* actualizo SystemCoreClock (CMSIS) */
-	SystemCoreClockUpdate();
+    /* actualizo SystemCoreClock (CMSIS) */
+    SystemCoreClockUpdate();
 
-	/** Inicializa array de prioridades de tareas. */
-	for (priorityIndex = 0; priorityIndex < TASK_PRIORITY_COUNT; priorityIndex++){
-		for (taskIndex = 0; taskIndex < TASK_COUNT_OS; taskIndex++){
-			ReadyTasksList[priorityIndex][taskIndex] = TASK_INVALID;
-		}
-	}
+    /** Inicializa array de prioridades de tareas. */
+    for (priorityIndex = 0; priorityIndex < TASK_PRIORITY_COUNT; priorityIndex++){
+        for (taskIndex = 0; taskIndex < TASK_COUNT_OS; taskIndex++){
+            ReadyTasksList[priorityIndex][taskIndex] = TASK_INVALID;
+        }
+    }
 
-	/* inicializo contexto idle */
-	TaskControlList[TASK_IDLE].taskDefinition = &TaskDefinitionIdle;
+    /* inicializo contexto idle */
+    TaskControlList[TASK_IDLE].taskDefinition = &TaskDefinitionIdle;
 
-	/* inicializo contextos iniciales de cada tarea */
-	for (taskIndex = 0; taskIndex < TASK_COUNT_OS; taskIndex++) {
+    /* inicializo contextos iniciales de cada tarea */
+    for (taskIndex = 0; taskIndex < TASK_COUNT_OS; taskIndex++) {
 
-		TaskControlList[taskIndex].taskState = TASK_STATE_TERMINATED;
-		ProcessTaskEvent(taskIndex, TASK_EVENT_START);
-	}
+        TaskControlList[taskIndex].taskState = TASK_STATE_TERMINATED;
+        ProcessTaskEvent(taskIndex, TASK_EVENT_START);
+    }
 
-	/* configuro PendSV con la prioridad más baja */
-	NVIC_SetPriority(PendSV_IRQn, 255);
-	SysTick_Config(SystemCoreClock / 1000);
+    /* configuro PendSV con la prioridad más baja */
+    NVIC_SetPriority(PendSV_IRQn, 255);
+    SysTick_Config(SystemCoreClock / 1000);
 
-	/* llamo al scheduler */
-	Os_Schedule();
+    /* llamo al scheduler */
+    Os_Schedule();
 
-	return -1;
+    return -1;
 }
 
 
 /*==================[end of file]============================================*/
 
-//todo: que la tarea add task ponga a la tarea en estado ready
-
-//todo: poner una API interna al OS que se llame changeTaskState y que se le pase el enum de estados y los cambie ahi dentro
-
-//todo: buffer circular para agregar/quitar tareas
-
-//todo: rebobinar la cinta cuando se deba poner al indice de la tarea actual en el primer lugar
-
-/* todo: hacer una maquina de estados de tareas en el que reciban el indice de la tarea que lo llama,
-el estado en que se encuentra la tarea y el evento que sucedio, y en funcion de eso que devuelva el nuevo
-estado de la tarea en cuestion
-*/
+// TODO: the task add task puts the task in ready state
+// TODO: put an internal API to the OS that is called changeTaskState and that passes the enum of states and changes them there
+// TODO: circular buffer to add / remove tasks
+// TODO: rewind the tape when it should be put to the current task index first
+// TODO: make a task state machine in which they receive the index of the task that calls it,
+// the state of the task and the event that happened, and based on that it returns the new
+// status of the task in question
