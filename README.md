@@ -36,15 +36,31 @@ A task can be interrupted for two reasons:
 
 To communicate with kernel system and to syncronize events and data between task, some common IPC (interprocess Communication Protocol) are implemented:
 
-* Semaphore: This mechanisms serves to ...
-* Mutex: This mechanisms serves to ...
-* Queue: This mechanisms serves to ...
+* Semaphore: This mechanisms serves to syncronize events between task. A semaphore can be taken by a task, then this semaphora can watched by another task waiting for this semaphore is released. In the meanwhile the tasks waiting for it will be paused and resumed once the semaphore is released.
+* Mutex: This mechanisms serves to but they are used in resources related tasks. Also, mutex implement sailing priority, a mechanishm to not block higher priority tasks if some of less priotity take de mutex.
+* Queue: This mechanisms serves to send data between tasks. The data is pushed into the queue and poped by another task.
+
+> **_NOTE:_**: The IPC mechanisms are not been released yet, they are in feature/ipc branch. 
 
 ### Tasks states
 
-The tasks states can be ...
+The tasks states can be determined by the next enum.
+
+```c
+/** possible states of a task */
+typedef enum TaskState {
+    TASK_STATE_INVALID,
+    TASK_STATE_READY,
+    TASK_STATE_RUNNING,
+    TASK_STATE_WAITING,
+    TASK_STATE_ZOMBIE,
+    TASK_STATE_TERMINATED
+} TaskState_t;
+```
 
 To explain better the possible tasks states, in the figure below are shown the tasks flow.
+
+![task_states](./doc/task_states.jpg)
 
 # Using RTOS
 
@@ -52,11 +68,56 @@ The RTOS usage is shown in the main.c file. Starting by importing the os.h and o
 
 Declare application tasks that must have the interfaces as follows.
 
+```c
+static void * Task1(void * param);
+static void * Task2(void * param);
+
+/* Stack for each task */
+uint8_t StackFrame1[STACK_SIZE];
+uint8_t StackFrame2[STACK_SIZE];
+
+// Define each OS Task associaten them to a function, stack and priority
+const TaskDefinition_t Os_TaskList[TASK_COUNT] = {
+    {StackFrame1, STACK_SIZE, Task1, (void *)DEFAULT_TASK_PARAMS, TASK_PRIORITY_LOW},
+    {StackFrame2, STACK_SIZE, Task2, (void *)DEFAULT_TASK_PARAMS, TASK_PRIORITY_MEDIUM},
+};
+```
 
 Define application tasks putting relating code in each one.
 
+```c
+static void * Task1(void * param){
+    // loops forever
+    while (1) {
+        Board_LED_Toggle(1);
+        Os_Delay(140);
+    }
+    return (void *)DEFAULT_RETURN_VALUE; 
+}
+
+static void * Task2(void * param){
+    // when this task finished to loop they won't be executed again
+    int timesToLoop = TIMES_TO_LOOP;
+    while (++timesToLoop) {
+        Board_LED_Toggle(2);
+        Os_Delay(650);
+    }
+    return (void *)DEFAULT_RETURN_VALUE; 
+}
+```
+
 Call the system initialization in the setup process. Note that there are no code in the main loop. This is because the kernel is in charge to manage tasks and execute them in the desired way.
 
+```c
+int main(void){
+    // Initialize the board HW
+    Board_Init();
+    // Start OS
+    Os_Start();
+    // The previous call must never comeback here
+    while(1);
+}
+```
 
 # Contributing
 
