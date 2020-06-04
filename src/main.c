@@ -5,8 +5,11 @@
 
 /*==================[macros and definitions]=================================*/
 
-/** tamaño de pila para los threads */
-#define STACK_SIZE 512
+// thread stack size
+#define STACK_SIZE              512
+#define DEFAULT_TASK_PARAMS     0xAABBCCDD
+#define DEFAULT_RETURN_VALUE    0
+#define TIMES_TO_LOOP           4
 
 /*==================[internal data declaration]==============================*/
 
@@ -22,79 +25,81 @@ static void * Task5(void * param);
 
 /*==================[external data definition]===============================*/
 
-/* pilas de cada tarea */
-uint8_t stackFrame1[STACK_SIZE];
+/* Stack for each task */
+uint8_t StackFrame1[STACK_SIZE];
 uint8_t StackFrame2[STACK_SIZE];
 uint8_t StackFrame3[STACK_SIZE];
 uint8_t StackFrame4[STACK_SIZE];
 uint8_t StackFrame5[STACK_SIZE];
 
+// Define each OS Task associaten them to a function, stack and priority
 const TaskDefinition_t Os_TaskList[TASK_COUNT] = {
-		{stackFrame1, STACK_SIZE, Task1, (void *)0xAAAAAAAA, TASK_PRIORITY_LOW},
-		{StackFrame2, STACK_SIZE, Task2, (void *)0xBBBBBBBB, TASK_PRIORITY_MEDIUM},
-		{StackFrame3, STACK_SIZE, Task3, (void *)0xBBBBBBBB, TASK_PRIORITY_HIGH},
-		{StackFrame4, STACK_SIZE, Task4, (void *)0xBBBBBBBB, TASK_PRIORITY_HIGH},
-		{StackFrame5, STACK_SIZE, Task5, (void *)0xBBBBBBBB, TASK_PRIORITY_HIGH}
+    {StackFrame1, STACK_SIZE, Task1, (void *)DEFAULT_TASK_PARAMS, TASK_PRIORITY_LOW},
+    {StackFrame2, STACK_SIZE, Task2, (void *)DEFAULT_TASK_PARAMS, TASK_PRIORITY_MEDIUM},
+    {StackFrame3, STACK_SIZE, Task3, (void *)DEFAULT_TASK_PARAMS, TASK_PRIORITY_HIGH},
+    {StackFrame4, STACK_SIZE, Task4, (void *)DEFAULT_TASK_PARAMS, TASK_PRIORITY_HIGH},
+    {StackFrame5, STACK_SIZE, Task5, (void *)DEFAULT_TASK_PARAMS, TASK_PRIORITY_HIGH}
 };
 
 /*==================[internal functions definition]==========================*/
 
 static void * Task1(void * param){
-	int j=4;
-	while (1) {
-		Board_LED_Toggle(1);
-		Os_Delay(140);
-	}
-	return (void *)0; 
+    // loops forever
+    while (1) {
+        Board_LED_Toggle(1);
+        Os_Delay(140);
+    }
+    return (void *)DEFAULT_RETURN_VALUE; 
 }
 
 static void * Task2(void * param){
-	int j=4;
-	while (j) {
-		Board_LED_Toggle(2);
-		Os_Delay(650);
-	}
-	return (void *)4; 
+    // when this task finished to loop they won't be executed again
+    int timesToLoop = TIMES_TO_LOOP;
+    while (++timesToLoop) {
+        Board_LED_Toggle(2);
+        Os_Delay(650);
+    }
+    return (void *)DEFAULT_RETURN_VALUE; 
 }
 
 static void * Task3(void * param){
-	int j=4;
-	while (j) {
-		Board_LED_Toggle(3);
-		Os_Delay(800);
-	}
-	return (void *)4; 
+    // when this task finished to loop they won't be executed again
+    int timesToLoop = TIMES_TO_LOOP;
+    while (++timesToLoop) {
+        Board_LED_Toggle(3);
+        Os_Delay(800);
+    }
+    return (void *)DEFAULT_RETURN_VALUE; 
 }
 
 static void * Task4(void * param){
-	int j=4;
-	while (j) {
-		Board_LED_Toggle(4);
-		Os_Delay(900);
-	}
-	return (void *)4; 
+    // when this task finished to loop they won't be executed again
+    int timesToLoop = TIMES_TO_LOOP;
+    while (++timesToLoop) {
+        Board_LED_Toggle(4);
+        Os_Delay(900);
+    }
+    return (void *)DEFAULT_RETURN_VALUE; 
 
 static void * Task5(void * param){
-	int j=4;
-	while (j) {
-		Board_LED_Toggle(5);
-		Os_Delay(250);
-	}
-	return (void *)4;
+    // when this task finished to loop they won't be executed again
+    int timesToLoop = TIMES_TO_LOOP;
+    while (++timesToLoop) {
+        Board_LED_Toggle(5);
+        Os_Delay(250);
+    }
+    return (void *)DEFAULT_RETURN_VALUE;
 }
 
 /*==================[external functions definition]==========================*/
 
-int main(void)
-{
-	/* Inicialización del MCU */
-	Board_Init();
-
-	/* Inicio OS */
-	Os_Start();
-
-	/* no deberíamos volver acá */
-	while(1);
+int main(void){
+    // Initialize the board HW
+    Board_Init();
+    // Start OS
+    Os_Start();
+    // The previous call must never comeback here
+    while(1);
 }
 
 /*==================[end of file]============================================*/

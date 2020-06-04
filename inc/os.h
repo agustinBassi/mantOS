@@ -10,9 +10,10 @@
 
 /*==================[typedef]================================================*/
 
-/** prototipo de las tareas o hilos de ejecucion o threads */
+// Prototype of tasks or threads
 typedef void* (*EntryPoint_t)(void *);
 
+// Possible priority task levels
 typedef enum TaskLevelPriority {
 	TASK_PRIORITY_IDLE,
 	TASK_PRIORITY_LOW,
@@ -21,12 +22,12 @@ typedef enum TaskLevelPriority {
 	TASK_PRIORITY_COUNT
 } TaskLevelPriority_t;
 
-/** estructura de definicón de tareas */
+// Struct used to define a task
 typedef struct TaskDefinition {
-	uint8_t * 			stackFrame;
-	uint32_t 			stackSize;
-	EntryPoint_t 		entryPoint;
-	void  * 			parameter;
+	uint8_t *           stackFrame;
+	uint32_t            stackSize;
+	EntryPoint_t        entryPoint;
+	void  *             parameter;
 	TaskLevelPriority_t priorityLevel;
 } TaskDefinition_t;
 
@@ -36,9 +37,13 @@ extern const TaskDefinition_t Os_TaskList[TASK_COUNT];
 
 /*==================[external functions declaration]=========================*/
 
-int Os_Start(void);
-void Os_Schedule(void);
-void Os_Delay(uint32_t milliseconds);
+// Starting point of the kernel
+int  Os_Start    (void);
+// Schedule a task (send it to dispatcher)
+void Os_Schedule (void);
+// The delay must be controlled by the kernel
+void Os_Delay    (uint32_t milliseconds);
 
 /*==================[end of file]============================================*/
+
 #endif /* #ifndef _OS_H_ */

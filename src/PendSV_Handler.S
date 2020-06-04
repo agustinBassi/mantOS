@@ -1,29 +1,30 @@
 	.syntax unified
+	/* Make the PendSV_Hanlder globally available */
 	.global PendSV_Handler
-
-	/* declaro acceso a la rutina de seleccion de proximo contexto */
+	/* declare access to routine for selecting the next context */
 	.extern Os_GetNextContext
-
 	.text
 	.thumb_func
 PendSV_Handler:
-	/* guardamos el resto del contexto */
+	/* save the rest of the context in this registers*/
 	push {r4-r11,lr}
+	/* call OS_GetNextContext passing as a parameter to it
+	the current context. It is equivalent to do:
 
-	/* llamo a getNextContext pasándole como parámetro al
-	contexto actual, esto equivale a hacer:
 	nextContext = getNextContext(actualContext);
 
-	Por convención (AAPCS), paso el parámetro en R0 y devuelvo
-	el valor en R0.
+	By convention (AAPCS) the parameter must be passed in R0
+	and returned must be returned in R0
 	*/
-	mrs r0, msp /* r0 = msp */
-	bl Os_GetNextContext /* r0 = siguiente puntero de pila
-	uso la instrucción bl (branch with link) */
-
-	msr msp, r0 /* msp = r0 */
-
+	/* R0 = msp */
+	mrs r0, msp 
+	/* R0 = next pointer in the stack.
+	Bbranch with link (bl) instruction is used */
+	bl Os_GetNextContext 
+	/* msp = r0 */
+	msr msp, r0 
+	/* get new context*/
 	pop {r4-r11,lr}
-
-	bx lr /* retorno de interrupción,
-debería recuperar el contexto armado en task_create */
+	/* Return from the interruption.
+	It must recovery the context builded in Task_Create function. */
+	bx lr 
